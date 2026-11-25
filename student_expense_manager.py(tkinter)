@@ -1,0 +1,645 @@
+==============================================================================
+PROJECT: SMART STUDENT & EXPENSE MANAGEMENT SYSTEM (TKINTER GUI)
+==============================================================================
+File: tkinter_project.py / tkinder_project.py
+Libraries Used: Pure Python standard library (tkinter, ttk, messagebox, filedialog, csv, os, datetime)
+No external pip packages needed!
+
+Features Included:
+ 1. Modern Styled Tabs (ttk.Notebook):
+    - Tab 1: Student Records Manager (Add, Update, Delete, Search, Clear, Export CSV)
+    - Tab 2: Expense & Fee Tracker (Category Combobox, Treeview, Live Total Calculator, Export CSV)
+    - Tab 3: Interactive GUI Calculator (Arithmetic operations, Clear, Backspace, ZeroDivision protection)
+ 2. Professional UI Design:
+    - Consistent color palette (#1e293b dark header, #f8fafc background, #2563eb accents)
+    - Modern ttk styles (clam theme, custom treeview headings, styled buttons)
+ 3. Comprehensive Validation & Error Handling:
+    - Custom alerts for empty fields, invalid numeric values, zero division
+    - Confirmation popups before deletion
+==============================================================================
+"""
+
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+import csv
+import os
+from datetime import datetime
+
+# File paths for saving dataS
+STUDENTS_CSV = "students_data.csv"
+EXPENSES_CSV = "expenses_data.csv"
+
+
+class SmartManagementApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Smart Management System - Student & Expense Hub")
+        self.root.geometry("860x680")
+        self.root.minsize(800, 600)
+        self.root.configure(bg="#f1f5f9")
+
+        # In-memory storage
+        self.students = []
+        self.expenses = []
+
+        # Configure Styles
+        self.setup_styles()
+
+        # Build Main UI
+        self.create_header()
+        self.create_tabs()
+
+        # Load existing data if available
+        self.load_initial_data()
+
+    # -------------------------------------------------------------------------
+    # STYLING CONFIGURATION
+    # -------------------------------------------------------------------------
+    def setup_styles(self):
+        self.style = ttk.Style()
+        self.style.theme_use("clam")
+
+        # Fonts
+        self.font_header = ("Segoe UI", 16, "bold")
+        self.font_sub = ("Segoe UI", 10)
+        self.font_label = ("Segoe UI", 10, "bold")
+        self.font_entry = ("Segoe UI", 10)
+
+        # Tab styling
+        self.style.configure("TNotebook", background="#f1f5f9", borderwidth=0)
+        self.style.configure("TNotebook.Tab", font=("Segoe UI", 10, "bold"), padding=[16, 8], background="#e2e8f0")
+        self.style.map("TNotebook.Tab",
+                       background=[("selected", "#2563eb")],
+                       foreground=[("selected", "white")])
+
+        # Button styling
+        self.style.configure("Primary.TButton", font=("Segoe UI", 10, "bold"), padding=6, background="#2563eb", foreground="white")
+        self.style.map("Primary.TButton", background=[("active", "#1d4ed8")])
+
+        self.style.configure("Success.TButton", font=("Segoe UI", 10, "bold"), padding=6, background="#10b981", foreground="white")
+        self.style.map("Success.TButton", background=[("active", "#059669")])
+
+        self.style.configure("Danger.TButton", font=("Segoe UI", 10, "bold"), padding=6, background="#ef4444", foreground="white")
+        self.style.map("Danger.TButton", background=[("active", "#dc2626")])
+
+        self.style.configure("Warning.TButton", font=("Segoe UI", 10, "bold"), padding=6, background="#f59e0b", foreground="white")
+        self.style.map("Warning.TButton", background=[("active", "#d97706")])
+
+        # Treeview styling
+        self.style.configure("Treeview.Heading", font=("Segoe UI", 10, "bold"), background="#e2e8f0", foreground="#1e293b", padding=5)
+        self.style.configure("Treeview", font=("Segoe UI", 10), rowheight=26, background="white", fieldbackground="white")
+        self.style.map("Treeview", background=[("selected", "#3b82f6")], foreground=[("selected", "white")])
+
+    # -------------------------------------------------------------------------
+    # TOP HEADER BANNER
+    # -------------------------------------------------------------------------
+    def create_header(self):
+        header_frame = tk.Frame(self.root, bg="#1e293b", height=70)
+        header_frame.pack(fill=tk.X)
+
+        title_lbl = tk.Label(header_frame, text="⚡ Smart Student & Expense Portal", font=self.font_header, fg="white", bg="#1e293b")
+        title_lbl.pack(side=tk.LEFT, padx=20, pady=12)
+
+        subtitle_lbl = tk.Label(header_frame, text="Python Tkinter Project", font=("Segoe UI", 10, "italic"), fg="#94a3b8", bg="#1e293b")
+        subtitle_lbl.pack(side=tk.RIGHT, padx=20, pady=16)
+
+    # -------------------------------------------------------------------------
+    # MAIN TABS SETUP
+    # -------------------------------------------------------------------------
+    def create_tabs(self):
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill=tk.BOTH, expand=True, padx=12, pady=10)
+
+        # Tab 1: Students
+        self.tab_students = tk.Frame(self.notebook, bg="#f8fafc")
+        self.notebook.add(self.tab_students, text="  👨‍🎓 Student Manager  ")
+        self.build_student_tab()
+
+        # Tab 2: Expenses
+        self.tab_expenses = tk.Frame(self.notebook, bg="#f8fafc")
+        self.notebook.add(self.tab_expenses, text="  💰 Expense Tracker  ")
+        self.build_expense_tab()
+
+        # Tab 3: Calculator
+        self.tab_calc = tk.Frame(self.notebook, bg="#f8fafc")
+        self.notebook.add(self.tab_calc, text="  🧮 Smart Calculator  ")
+        self.build_calculator_tab()
+
+    # =========================================================================
+    # TAB 1: STUDENT MANAGER
+    # =========================================================================
+    def build_student_tab(self):
+        # Left Side: Form Frame
+        form_frame = tk.LabelFrame(self.tab_students, text=" Student Details Form ", font=self.font_label, bg="#ffffff", fg="#1e293b", padx=12, pady=10)
+        form_frame.place(x=15, y=10, width=280, height=440)
+
+        # Form Fields
+        tk.Label(form_frame, text="Roll No / ID:", font=self.font_label, bg="#ffffff").grid(row=0, column=0, sticky="w", pady=(5, 2))
+        self.st_id_var = tk.StringVar()
+        self.st_id_entry = ttk.Entry(form_frame, textvariable=self.st_id_var, font=self.font_entry)
+        self.st_id_entry.grid(row=1, column=0, sticky="ew", pady=(0, 8))
+
+        tk.Label(form_frame, text="Full Name:", font=self.font_label, bg="#ffffff").grid(row=2, column=0, sticky="w", pady=(0, 2))
+        self.st_name_var = tk.StringVar()
+        self.st_name_entry = ttk.Entry(form_frame, textvariable=self.st_name_var, font=self.font_entry)
+        self.st_name_entry.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+
+        tk.Label(form_frame, text="Age:", font=self.font_label, bg="#ffffff").grid(row=4, column=0, sticky="w", pady=(0, 2))
+        self.st_age_var = tk.StringVar()
+        self.st_age_entry = ttk.Entry(form_frame, textvariable=self.st_age_var, font=self.font_entry)
+        self.st_age_entry.grid(row=5, column=0, sticky="ew", pady=(0, 8))
+
+        tk.Label(form_frame, text="Course:", font=self.font_label, bg="#ffffff").grid(row=6, column=0, sticky="w", pady=(0, 2))
+        self.st_course_var = tk.StringVar()
+        self.st_course_combo = ttk.Combobox(form_frame, textvariable=self.st_course_var, font=self.font_entry,
+                                            values=["Python Fullstack", "Data Science", "Web Development", "AI & ML", "Java Programming"], state="readonly")
+        self.st_course_combo.grid(row=7, column=0, sticky="ew", pady=(0, 8))
+        self.st_course_combo.current(0)
+
+        tk.Label(form_frame, text="Fees Status:", font=self.font_label, bg="#ffffff").grid(row=8, column=0, sticky="w", pady=(0, 2))
+        self.st_fee_var = tk.StringVar()
+        self.st_fee_combo = ttk.Combobox(form_frame, textvariable=self.st_fee_var, font=self.font_entry,
+                                         values=["Paid", "Pending", "Partial"], state="readonly")
+        self.st_fee_combo.grid(row=9, column=0, sticky="ew", pady=(0, 15))
+        self.st_fee_combo.current(0)
+
+        form_frame.columnconfigure(0, weight=1)
+
+        # Action Buttons in Form
+        btn_box = tk.Frame(form_frame, bg="#ffffff")
+        btn_box.grid(row=10, column=0, sticky="ew")
+        btn_box.columnconfigure((0, 1), weight=1)
+
+        ttk.Button(btn_box, text="➕ Add", style="Primary.TButton", command=self.add_student).grid(row=0, column=0, padx=3, pady=3, sticky="ew")
+        ttk.Button(btn_box, text="✏️ Update", style="Success.TButton", command=self.update_student).grid(row=0, column=1, padx=3, pady=3, sticky="ew")
+        ttk.Button(btn_box, text="🗑️ Delete", style="Danger.TButton", command=self.delete_student).grid(row=1, column=0, padx=3, pady=3, sticky="ew")
+        ttk.Button(btn_box, text="🧹 Clear", style="Warning.TButton", command=self.clear_student_form).grid(row=1, column=1, padx=3, pady=3, sticky="ew")
+
+        # Right Side: Table & Search Frame
+        table_frame = tk.Frame(self.tab_students, bg="#f8fafc")
+        table_frame.place(x=310, y=10, relwidth=0.62, height=440)
+
+        # Search bar
+        search_box = tk.Frame(table_frame, bg="#f8fafc")
+        search_box.pack(fill=tk.X, pady=(0, 8))
+
+        tk.Label(search_box, text="Search Student:", font=self.font_label, bg="#f8fafc").pack(side=tk.LEFT, padx=(0, 8))
+        self.st_search_var = tk.StringVar()
+        self.st_search_var.trace_add("write", lambda *args: self.filter_students())
+        search_entry = ttk.Entry(search_box, textvariable=self.st_search_var, font=self.font_entry)
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 8))
+        ttk.Button(search_box, text="Reset", command=lambda: self.st_search_var.set("")).pack(side=tk.RIGHT)
+
+        # Treeview Table
+        cols = ("ID", "Name", "Age", "Course", "Fees")
+        self.st_tree = ttk.Treeview(table_frame, columns=cols, show="headings", selectmode="browse")
+        self.st_tree.heading("ID", text="Roll / ID")
+        self.st_tree.heading("Name", text="Student Name")
+        self.st_tree.heading("Age", text="Age")
+        self.st_tree.heading("Course", text="Course")
+        self.st_tree.heading("Fees", text="Fees Status")
+
+        self.st_tree.column("ID", width=70, anchor="center")
+        self.st_tree.column("Name", width=140, anchor="w")
+        self.st_tree.column("Age", width=50, anchor="center")
+        self.st_tree.column("Course", width=130, anchor="w")
+        self.st_tree.column("Fees", width=80, anchor="center")
+
+        st_scroll = ttk.Scrollbar(table_frame, orient=tk.VERTICAL, command=self.st_tree.yview)
+        self.st_tree.configure(yscrollcommand=st_scroll.set)
+        st_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.st_tree.pack(fill=tk.BOTH, expand=True)
+
+        self.st_tree.bind("<Double-1>", self.on_student_select)
+
+        # Bottom Bar: Export & Stats
+        bottom_box = tk.Frame(self.tab_students, bg="#f8fafc")
+        bottom_box.place(x=15, y=465, relwidth=0.96, height=50)
+
+        self.st_count_label = tk.Label(bottom_box, text="Total Students: 0", font=self.font_label, bg="#f8fafc", fg="#1e293b")
+        self.st_count_label.pack(side=tk.LEFT, padx=10)
+
+        ttk.Button(bottom_box, text="📤 Export Students to CSV", style="Primary.TButton", command=self.export_students_csv).pack(side=tk.RIGHT, padx=5)
+
+    def add_student(self):
+        sid = self.st_id_var.get().strip()
+        name = self.st_name_var.get().strip()
+        age_str = self.st_age_var.get().strip()
+        course = self.st_course_var.get().strip()
+        fee = self.st_fee_var.get().strip()
+
+        if not sid or not name or not age_str:
+            messagebox.showwarning("Validation Error", "Please fill in Roll No, Name, and Age!")
+            return
+
+        try:
+            age = int(age_str)
+            if age <= 0 or age > 100:
+                raise ValueError("Age must be between 1 and 100.")
+        except ValueError as e:
+            messagebox.showerror("Invalid Input", f"Age must be a valid number!\n{e}")
+            return
+
+        # Check for duplicate ID
+        for s in self.students:
+            if s["id"] == sid:
+                messagebox.showerror("Duplicate ID", f"A student with Roll No/ID '{sid}' already exists!")
+                return
+
+        student = {"id": sid, "name": name, "age": age, "course": course, "fee": fee}
+        self.students.append(student)
+        self.refresh_student_tree()
+        self.clear_student_form()
+        self.save_students_to_file()
+        messagebox.showinfo("Success", f"Student '{name}' added successfully!")
+
+    def update_student(self):
+        selected = self.st_tree.selection()
+        if not selected:
+            messagebox.showwarning("Selection Required", "Please select a student from the table to update.")
+            return
+
+        sid = self.st_id_var.get().strip()
+        name = self.st_name_var.get().strip()
+        age_str = self.st_age_var.get().strip()
+        course = self.st_course_var.get().strip()
+        fee = self.st_fee_var.get().strip()
+
+        if not sid or not name or not age_str:
+            messagebox.showwarning("Validation Error", "All fields are required!")
+            return
+
+        try:
+            age = int(age_str)
+        except ValueError:
+            messagebox.showerror("Invalid Age", "Age must be an integer number.")
+            return
+
+        # Update in list
+        item_id = selected[0]
+        original_sid = self.st_tree.item(item_id)["values"][0]
+
+        for s in self.students:
+            if str(s["id"]) == str(original_sid):
+                s["id"] = sid
+                s["name"] = name
+                s["age"] = age
+                s["course"] = course
+                s["fee"] = fee
+                break
+
+        self.refresh_student_tree()
+        self.clear_student_form()
+        self.save_students_to_file()
+        messagebox.showinfo("Updated", f"Student '{name}' details updated successfully!")
+
+    def delete_student(self):
+        selected = self.st_tree.selection()
+        if not selected:
+            messagebox.showwarning("Selection Required", "Please select a student to delete.")
+            return
+
+        item = self.st_tree.item(selected[0])
+        sid = str(item["values"][0])
+        name = item["values"][1]
+
+        confirm = messagebox.askyesno("Confirm Delete", f"Are you sure you want to delete '{name}' (ID: {sid})?")
+        if confirm:
+            self.students = [s for s in self.students if str(s["id"]) != sid]
+            self.refresh_student_tree()
+            self.clear_student_form()
+            self.save_students_to_file()
+            messagebox.showinfo("Deleted", f"Student '{name}' deleted successfully.")
+
+    def clear_student_form(self):
+        self.st_id_var.set("")
+        self.st_name_var.set("")
+        self.st_age_var.set("")
+        self.st_course_combo.current(0)
+        self.st_fee_combo.current(0)
+
+    def on_student_select(self, event):
+        selected = self.st_tree.selection()
+        if selected:
+            values = self.st_tree.item(selected[0])["values"]
+            self.st_id_var.set(values[0])
+            self.st_name_var.set(values[1])
+            self.st_age_var.set(values[2])
+            self.st_course_var.set(values[3])
+            self.st_fee_var.set(values[4])
+
+    def refresh_student_tree(self, data_list=None):
+        for row in self.st_tree.get_children():
+            self.st_tree.delete(row)
+
+        target = data_list if data_list is not None else self.students
+        for s in target:
+            self.st_tree.insert("", "end", values=(s["id"], s["name"], s["age"], s["course"], s["fee"]))
+
+        self.st_count_label.config(text=f"Total Students: {len(self.students)}")
+
+    def filter_students(self):
+        q = self.st_search_var.get().strip().lower()
+        if not q:
+            self.refresh_student_tree()
+        else:
+            filtered = [s for s in self.students if q in str(s["id"]).lower() or q in s["name"].lower() or q in s["course"].lower()]
+            self.refresh_student_tree(filtered)
+
+    def save_students_to_file(self):
+        try:
+            with open(STUDENTS_CSV, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["ID", "Name", "Age", "Course", "Fees"])
+                for s in self.students:
+                    writer.writerow([s["id"], s["name"], s["age"], s["course"], s["fee"]])
+        except Exception as e:
+            messagebox.showerror("File Error", f"Could not save student data: {e}")
+
+    def export_students_csv(self):
+        if not self.students:
+            messagebox.showinfo("Empty", "No students to export.")
+            return
+        path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")], initialfile="students_export.csv")
+        if path:
+            try:
+                with open(path, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["ID", "Name", "Age", "Course", "Fees"])
+                    for s in self.students:
+                        writer.writerow([s["id"], s["name"], s["age"], s["course"], s["fee"]])
+                messagebox.showinfo("Exported", f"Successfully exported {len(self.students)} students to {path}!")
+            except Exception as e:
+                messagebox.showerror("Export Failed", f"Error: {e}")
+
+    # =========================================================================
+    # TAB 2: EXPENSE & FEE TRACKER
+    # =========================================================================
+    def build_expense_tab(self):
+        # Left Side Form
+        exp_form = tk.LabelFrame(self.tab_expenses, text=" Add New Expense / Fee ", font=self.font_label, bg="#ffffff", fg="#1e293b", padx=12, pady=10)
+        exp_form.place(x=15, y=10, width=280, height=440)
+
+        tk.Label(exp_form, text="Description / Title:", font=self.font_label, bg="#ffffff").grid(row=0, column=0, sticky="w", pady=(5, 2))
+        self.exp_desc_var = tk.StringVar()
+        ttk.Entry(exp_form, textvariable=self.exp_desc_var, font=self.font_entry).grid(row=1, column=0, sticky="ew", pady=(0, 8))
+
+        tk.Label(exp_form, text="Category:", font=self.font_label, bg="#ffffff").grid(row=2, column=0, sticky="w", pady=(0, 2))
+        self.exp_cat_var = tk.StringVar()
+        cat_combo = ttk.Combobox(exp_form, textvariable=self.exp_cat_var, font=self.font_entry,
+                                 values=["Tuition Fee", "Books & Study", "Stationery", "Hostel / Rent", "Food", "Travel", "Exam Fee", "Other"], state="readonly")
+        cat_combo.grid(row=3, column=0, sticky="ew", pady=(0, 8))
+        cat_combo.current(0)
+
+        tk.Label(exp_form, text="Amount (₹):", font=self.font_label, bg="#ffffff").grid(row=4, column=0, sticky="w", pady=(0, 2))
+        self.exp_amt_var = tk.StringVar()
+        ttk.Entry(exp_form, textvariable=self.exp_amt_var, font=self.font_entry).grid(row=5, column=0, sticky="ew", pady=(0, 8))
+
+        tk.Label(exp_form, text="Date (YYYY-MM-DD):", font=self.font_label, bg="#ffffff").grid(row=6, column=0, sticky="w", pady=(0, 2))
+        self.exp_date_var = tk.StringVar(value=datetime.now().strftime("%Y-%m-%d"))
+        ttk.Entry(exp_form, textvariable=self.exp_date_var, font=self.font_entry).grid(row=7, column=0, sticky="ew", pady=(0, 20))
+
+        exp_form.columnconfigure(0, weight=1)
+
+        ttk.Button(exp_form, text="➕ Add Expense", style="Primary.TButton", command=self.add_expense).grid(row=8, column=0, sticky="ew", pady=4)
+        ttk.Button(exp_form, text="🗑️ Delete Selected", style="Danger.TButton", command=self.delete_expense).grid(row=9, column=0, sticky="ew", pady=4)
+
+        # Right Side Treeview
+        exp_table_frame = tk.Frame(self.tab_expenses, bg="#f8fafc")
+        exp_table_frame.place(x=310, y=10, relwidth=0.62, height=440)
+
+        cols = ("Date", "Title", "Category", "Amount")
+        self.exp_tree = ttk.Treeview(exp_table_frame, columns=cols, show="headings", selectmode="browse")
+        self.exp_tree.heading("Date", text="Date")
+        self.exp_tree.heading("Title", text="Description")
+        self.exp_tree.heading("Category", text="Category")
+        self.exp_tree.heading("Amount", text="Amount (₹)")
+
+        self.exp_tree.column("Date", width=90, anchor="center")
+        self.exp_tree.column("Title", width=140, anchor="w")
+        self.exp_tree.column("Category", width=110, anchor="center")
+        self.exp_tree.column("Amount", width=90, anchor="e")
+
+        exp_scroll = ttk.Scrollbar(exp_table_frame, orient=tk.VERTICAL, command=self.exp_tree.yview)
+        self.exp_tree.configure(yscrollcommand=exp_scroll.set)
+        exp_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.exp_tree.pack(fill=tk.BOTH, expand=True)
+
+        # Bottom Bar: Total Summary Card
+        exp_bottom = tk.Frame(self.tab_expenses, bg="#f8fafc")
+        exp_bottom.place(x=15, y=465, relwidth=0.96, height=50)
+
+        self.exp_total_label = tk.Label(exp_bottom, text="Total Expenses: ₹0.00", font=("Segoe UI", 12, "bold"), fg="#16a34a", bg="#f8fafc")
+        self.exp_total_label.pack(side=tk.LEFT, padx=10)
+
+        ttk.Button(exp_bottom, text="📤 Export Expenses to CSV", style="Success.TButton", command=self.export_expenses_csv).pack(side=tk.RIGHT, padx=5)
+
+    def add_expense(self):
+        desc = self.exp_desc_var.get().strip()
+        cat = self.exp_cat_var.get().strip()
+        amt_str = self.exp_amt_var.get().strip()
+        date_val = self.exp_date_var.get().strip()
+
+        if not desc or not amt_str:
+            messagebox.showwarning("Missing Info", "Please enter description and amount.")
+            return
+        try:
+            amount = float(amt_str)
+            if amount <= 0:
+                raise ValueError("Amount must be greater than zero.")
+        except ValueError as e:
+            messagebox.showerror("Invalid Amount", f"Please enter a valid positive number for amount!\n{e}")
+            return
+
+        expense = {"date": date_val, "title": desc, "category": cat, "amount": amount}
+        self.expenses.append(expense)
+
+        self.refresh_expense_tree()
+        self.exp_desc_var.set("")
+        self.exp_amt_var.set("")
+        self.save_expenses_to_file()
+        messagebox.showinfo("Success", f"Expense of ₹{amount:.2f} recorded!")
+
+    def delete_expense(self):
+        selected = self.exp_tree.selection()
+        if not selected:
+            messagebox.showwarning("Select Row", "Please select an expense item to delete.")
+            return
+
+        idx = self.exp_tree.index(selected[0])
+        del self.expenses[idx]
+        self.refresh_expense_tree()
+        self.save_expenses_to_file()
+        messagebox.showinfo("Deleted", "Expense item deleted.")
+
+    def refresh_expense_tree(self):
+        for row in self.exp_tree.get_children():
+            self.exp_tree.delete(row)
+
+        total = 0.0
+        for exp in self.expenses:
+            amt = exp["amount"]
+            total += amt
+            self.exp_tree.insert("", "end", values=(exp["date"], exp["title"], exp["category"], f"₹{amt:,.2f}"))
+
+        self.exp_total_label.config(text=f"Total Expenses: ₹{total:,.2f}  ({len(self.expenses)} entries)")
+
+    def save_expenses_to_file(self):
+        try:
+            with open(EXPENSES_CSV, "w", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow(["Date", "Title", "Category", "Amount"])
+                for e in self.expenses:
+                    writer.writerow([e["date"], e["title"], e["category"], e["amount"]])
+        except Exception as e:
+            messagebox.showerror("File Error", f"Could not save expenses: {e}")
+
+    def export_expenses_csv(self):
+        if not self.expenses:
+            messagebox.showinfo("Empty", "No expenses to export.")
+            return
+        path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")], initialfile="expenses_export.csv")
+        if path:
+            try:
+                with open(path, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["Date", "Title", "Category", "Amount"])
+                    for e in self.expenses:
+                        writer.writerow([e["date"], e["title"], e["category"], e["amount"]])
+                messagebox.showinfo("Exported", f"Saved expenses report to {path}!")
+            except Exception as e:
+                messagebox.showerror("Export Error", f"Failed to export: {e}")
+
+    # =========================================================================
+    # TAB 3: SMART INTERACTIVE CALCULATOR
+    # =========================================================================
+    def build_calculator_tab(self):
+        calc_container = tk.Frame(self.tab_calc, bg="#f8fafc")
+        calc_container.pack(expand=True, pady=15)
+
+        card = tk.LabelFrame(calc_container, text=" Standard & Fee Calculator ", font=self.font_label, bg="#ffffff", padx=15, pady=15)
+        card.pack()
+
+        # Display screen
+        self.calc_display_var = tk.StringVar(value="0")
+        display = tk.Entry(card, textvariable=self.calc_display_var, font=("Consolas", 20, "bold"), justify="right", bd=4, relief="ridge", bg="#f8fafc", fg="#0f172a")
+        display.grid(row=0, column=0, columnspan=4, pady=(0, 15), ipady=8, sticky="ew")
+
+        # Calculator buttons layout
+        buttons = [
+            ("C", 1, 0, "#ef4444", "white"), ("⌫", 1, 1, "#f59e0b", "white"), ("%", 1, 2, "#e2e8f0", "#1e293b"), ("/", 1, 3, "#3b82f6", "white"),
+            ("7", 2, 0, "#f1f5f9", "#1e293b"), ("8", 2, 1, "#f1f5f9", "#1e293b"), ("9", 2, 2, "#f1f5f9", "#1e293b"), ("*", 2, 3, "#3b82f6", "white"),
+            ("4", 3, 0, "#f1f5f9", "#1e293b"), ("5", 3, 1, "#f1f5f9", "#1e293b"), ("6", 3, 2, "#f1f5f9", "#1e293b"), ("-", 3, 3, "#3b82f6", "white"),
+            ("1", 4, 0, "#f1f5f9", "#1e293b"), ("2", 4, 1, "#f1f5f9", "#1e293b"), ("3", 4, 2, "#f1f5f9", "#1e293b"), ("+", 4, 3, "#3b82f6", "white"),
+            ("0", 5, 0, "#f1f5f9", "#1e293b"), (".", 5, 1, "#f1f5f9", "#1e293b"), ("00", 5, 2, "#f1f5f9", "#1e293b"), ("=", 5, 3, "#10b981", "white")
+        ]
+
+        for text, r, c, bg, fg in buttons:
+            btn = tk.Button(card, text=text, font=("Segoe UI", 12, "bold"), width=5, height=2, bg=bg, fg=fg,
+                            relief="flat", activebackground="#cbd5e1", command=lambda t=text: self.on_calc_btn_click(t))
+            btn.grid(row=r, column=c, padx=4, pady=4)
+
+    def on_calc_btn_click(self, char):
+        current = self.calc_display_var.get()
+
+        if char == "C":
+            self.calc_display_var.set("0")
+        elif char == "⌫":
+            if len(current) > 1 and current != "Error":
+                self.calc_display_var.set(current[:-1])
+            else:
+                self.calc_display_var.set("0")
+        elif char == "=":
+            try:
+                # Sanitize input: allow only math characters
+                safe_chars = "0123456789+-*/. "
+                filtered = "".join([c for c in current if c in safe_chars])
+                if not filtered:
+                    return
+
+                # Zero division check
+                if "/0" in filtered.replace(" ", ""):
+                    messagebox.showerror("Math Error", "ZeroDivisionError: Cannot divide by zero!")
+                    self.calc_display_var.set("Error")
+                    return
+
+                # Evaluate arithmetic
+                result = eval(filtered)
+                # Format integer nicely if clean
+                if isinstance(result, float) and result.is_integer():
+                    result = int(result)
+                self.calc_display_var.set(str(result))
+            except ZeroDivisionError:
+                messagebox.showerror("Zero Division", "Cannot divide by zero!")
+                self.calc_display_var.set("Error")
+            except Exception as e:
+                messagebox.showerror("Syntax Error", f"Invalid math expression!\n{e}")
+                self.calc_display_var.set("Error")
+        else:
+            if current in ("0", "Error"):
+                self.calc_display_var.set(char)
+            else:
+                self.calc_display_var.set(current + char)
+
+    # -------------------------------------------------------------------------
+    # INITIAL DATA LOADER
+    # -------------------------------------------------------------------------
+    def load_initial_data(self):
+        # 1. Load Students if file exists or provide initial sample
+        if os.path.exists(STUDENTS_CSV):
+            try:
+                with open(STUDENTS_CSV, "r", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        self.students.append({
+                            "id": row.get("ID", ""),
+                            "name": row.get("Name", ""),
+                            "age": int(row.get("Age", 0)),
+                            "course": row.get("Course", ""),
+                            "fee": row.get("Fees", "Paid")
+                        })
+            except Exception:
+                pass
+
+        if not self.students:
+            # Starter sample data for first launch
+            self.students = [
+                {"id": "101", "name": "Riswan", "age": 20, "course": "Python Fullstack", "fee": "Paid"},
+                {"id": "102", "name": "Monu", "age": 21, "course": "Data Science", "fee": "Partial"},
+                {"id": "103", "name": "Karthik", "age": 22, "course": "Web Development", "fee": "Pending"}
+            ]
+
+        self.refresh_student_tree()
+
+        # 2. Load Expenses if file exists or provide starter data
+        if os.path.exists(EXPENSES_CSV):
+            try:
+                with open(EXPENSES_CSV, "r", encoding="utf-8") as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        self.expenses.append({
+                            "date": row.get("Date", ""),
+                            "title": row.get("Title", ""),
+                            "category": row.get("Category", ""),
+                            "amount": float(row.get("Amount", 0))
+                        })
+            except Exception:
+                pass
+
+        if not self.expenses:
+            today = datetime.now().strftime("%Y-%m-%d")
+            self.expenses = [
+                {"date": today, "title": "Course Registration Fee", "category": "Tuition Fee", "amount": 15000.0},
+                {"date": today, "title": "Python Programming Books", "category": "Books & Study", "amount": 1250.0}
+            ]
+
+        self.refresh_expense_tree()
+
+
+# -----------------------------------------------------------------------------
+# APPLICATION ENTRY POINT
+# -----------------------------------------------------------------------------
+if __name__ == "__main__":
+    app_window = tk.Tk()
+    app = SmartManagementApp(app_window)
+    app_window.mainloop()
